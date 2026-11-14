@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#071321">
+<title>NCP Finder — 天の北極</title>
+<style>
+:root{color-scheme:dark;--bg:#071321;--fg:#ebf3ff;--sub:#92a9bd;--gold:#ffd05d;--ok:#60e7aa;--line:#284157}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% 22%,#153044 0,#071321 68%);font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;color:var(--fg);text-align:center;min-height:100svh;padding:env(safe-area-inset-top) 14px calc(18px + env(safe-area-inset-bottom))}
+header{padding-top:15px}header h1{font-size:24px;letter-spacing:.06em;margin:0}header p{font-size:12px;color:var(--sub);margin:6px 0 0}
+#status{font-size:14px;color:var(--gold);min-height:42px;display:flex;align-items:center;justify-content:center;max-width:390px;margin:8px auto 2px;line-height:1.5}
+#dial{position:relative;width:min(89vw,390px);aspect-ratio:1;margin:auto;touch-action:none}
+#dial svg{width:100%;height:100%;overflow:visible} .ring{fill:rgba(10,24,40,.42);stroke:#45677f;stroke-width:1.7}.inner{fill:none;stroke:#29475a;stroke-width:1;stroke-dasharray:3 8}.axis{stroke:#35546b;stroke-width:1}.center{stroke:#e6f4ff;stroke-width:2;stroke-linecap:round}.target{fill:#ffd05d;stroke:#fff2be;stroke-width:1.4}.arrow{fill:var(--gold)}.ok .target,.ok .arrow{fill:var(--ok);stroke:var(--ok)}.ok .ring{stroke:var(--ok)}
+#difference{font-size:35px;font-weight:730;font-variant-numeric:tabular-nums;letter-spacing:.01em;margin:0}#message{font-size:14px;color:var(--sub);margin:7px auto 20px;min-height:18px}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-width:420px;margin:0 auto 14px}.stat{background:#102538;border:1px solid #263e51;border-radius:12px;padding:11px 7px}.stat .label{display:block;font-size:11px;color:var(--sub);margin-bottom:7px}.stat .num{font-size:20px;font-variant-numeric:tabular-nums;font-weight:620}
+button{appearance:none;border:0;background:var(--gold);color:#18202b;font-weight:750;font-size:16px;border-radius:13px;padding:14px 19px;max-width:420px;width:100%;margin-bottom:12px}button:disabled{opacity:.65}
+.settings{max-width:420px;margin:0 auto;text-align:left;background:#0e2233;border:1px solid #284157;border-radius:12px;padding:12px 14px}.settings summary{font-size:13px;color:#bbd1e3;cursor:pointer}.field{display:flex;align-items:center;justify-content:space-between;margin-top:12px;gap:12px;font-size:13px}.field input{width:110px;border:1px solid #4c6c82;background:#071624;border-radius:8px;padding:9px;color:white;font-size:15px;text-align:right}.help{font-size:12px;color:var(--sub);line-height:1.6;margin:11px 0 0}.warn{color:#efb785}footer{max-width:420px;margin:12px auto 0;font-size:11px;color:#7492a7;line-height:1.65}
+</style>
+</head><body>
+<header><h1>✦ NCP Finder</h1><p>画面の表側を天の北極へ向ける</p></header>
+<div id="status" role="status">「センサーを開始」を押してください</div>
+<div id="dial" aria-label="天の北極の位置を示す円形照準">
+<svg viewBox="0 0 360 360" aria-hidden="true">
+  <circle class="ring" cx="180" cy="180" r="153"/>
+  <circle class="inner" cx="180" cy="180" r="100"/>
+  <circle class="inner" cx="180" cy="180" r="50"/>
+  <path class="axis" d="M180 27V333M27 180H333"/>
+  <path class="center" d="M168 180h24M180 168v24"/>
+  <g id="marker" transform="translate(180 42)"><circle class="target" r="11"/><circle fill="#172638" r="3.3"/></g>
+  <g id="edgeArrow" transform="translate(180 27)"><path class="arrow" d="M0 -14L-9 0L9 0Z"/></g>
+  <text x="180" y="18" fill="#829eaf" font-size="11" text-anchor="middle">画面上</text>
+</svg></div>
+<div id="difference">--.-°</div><div id="message">黄色の印を中央の＋に重ねる</div>
+<div class="stats"><div class="stat"><span class="label">画面の方位（真北=0°）</span><span id="az" class="num">---.-°</span></div><div class="stat"><span class="label">画面の仰角</span><span id="alt" class="num">--.-°</span></div><div class="stat"><span class="label">目標方位</span><span class="num">0.0°</span></div><div class="stat"><span class="label">目標仰角（緯度）</span><span id="targetAlt" class="num">34.2°</span></div></div>
+<button id="start">センサーを開始</button>
+<details class="settings"><summary>設定・精度・診断</summary>
+<label class="field">観測地点の緯度（北緯 °）<input id="lat" type="number" inputmode="decimal" step="0.001" min="-90" max="90" value="34.24"></label>
+<label class="field">方位補正（°：東を＋）<input id="corr" type="number" inputmode="decimal" step="0.1" min="-180" max="180" value="0"></label>
+<p class="help">GPSが許可されると緯度を自動入力します。方位補正は、コンパスが示す方位に足す角度です。真北とずれる場合だけ調整してください。</p>
+<p class="help" id="diagnostic">センサー待機中</p>
+</details>
+<footer>画面側（ガラス面から外へ出る垂直方向）を狙います。矢印は目標が円の外にある方向。<br><span class="warn">磁気・建物・金属による誤差があります。Seestarの仮合わせ用です。GPSとセンサーはHTTPS配信で利用してください。</span></footer>
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id),rad=Math.PI/180,deg=180/Math.PI;
+const ui={status:$('status'),dial:$('dial'),marker:$('marker'),arrow:$('edgeArrow'),difference:$('difference'),message:$('message'),az:$('az'),alt:$('alt'),targetAlt:$('targetAlt'),lat:$('lat'),corr:$('corr'),start:$('start'),diag:$('diagnostic')};
+let active=false, gotEvent=false, lastAt=0;
+const wrap=d=>(d%360+360)%360, clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
+function angles(e){
+ const a=e.alpha*rad,b=e.beta*rad,g=e.gamma*rad,ca=Math.cos(a),sa=Math.sin(a),cb=Math.cos(b),sb=Math.sin(b),cg=Math.cos(g),sg=Math.sin(g);
+ // W3C Z-X'-Y'' rotation, each column is a device basis vector in the world frame.
+ const x=[ca*cg-sa*sb*sg,sa*cg+ca*sb*sg,-cb*sg];
+ const y=[-sa*cb,ca*cb,sb];
+ const z=[ca*sg+sa*sb*cg,sa*sg-ca*sb*cg,cb*cg];
+ return {x,y,z};
+}
+function render(e){
+ if(!Number.isFinite(e.alpha)||!Number.isFinite(e.beta)||!Number.isFinite(e.gamma))return;
+ gotEvent=true;lastAt=Date.now();
+ const compass=Number(e.webkitCompassHeading),hasCompass=Number.isFinite(compass)&&compass>=0&&compass<=360;
+ const {x,y,z}=angles(e);
+ // DeviceOrientation alpha may be relative on iOS; correct its world azimuth by the independent compass heading.
+ // The top-of-device horizontal direction determines the azimuth offset. This is reliable unless top is vertical.
+ const horizontalTop=Math.hypot(y[0],y[1]);
+ let headingCorrection=0,hasNorth=false;
+ if(hasCompass&&horizontalTop>.08){
+  const calculatedTop=wrap(Math.atan2(y[0],y[1])*deg);
+  headingCorrection=(compass-calculatedTop+540)%360-180;
+  hasNorth=true;
+ } else if(e.absolute===true){hasNorth=true;}
+ const adjustment=(headingCorrection+(Number(ui.corr.value)||0))*rad;
+ const co=Math.cos(adjustment),si=Math.sin(adjustment);
+ // Rotate arbitrary/reference world horizontal coordinates into true East/North, preserving Up.
+ function fix(v){return [co*v[0]+si*v[1],-si*v[0]+co*v[1],v[2]];}
+ const X=fix(x),Y=fix(y),Z=fix(z);
+ const latitude=clamp(Number(ui.lat.value)||0,-90,90)*rad;
+ const target=[0,Math.cos(latitude),Math.sin(latitude)]; // east, north, up
+ const q=[target[0]*X[0]+target[1]*X[1]+target[2]*X[2], target[0]*Y[0]+target[1]*Y[1]+target[2]*Y[2], target[0]*Z[0]+target[1]*Z[1]+target[2]*Z[2]];
+ const err=Math.acos(clamp(q[2],-1,1))*deg;
+ const az=wrap(Math.atan2(Z[0],Z[1])*deg),alt=Math.asin(clamp(Z[2],-1,1))*deg;
+ ui.az.textContent=hasNorth?az.toFixed(1)+'°':'---.-°';ui.alt.textContent=alt.toFixed(1)+'°';
+ ui.targetAlt.textContent=(latitude*deg).toFixed(2)+'°';
+ ui.diag.textContent=`α ${e.alpha.toFixed(1)}° / β ${e.beta.toFixed(1)}° / γ ${e.gamma.toFixed(1)}° ｜ compass ${hasCompass?compass.toFixed(1)+'°':'なし'} ｜ ${e.absolute?'absolute':'relative'}`;
+ if(!hasNorth){
+  ui.status.textContent='真北の情報を取得できません（センサーまたは方位許可を確認）';
+  ui.difference.textContent='方位未確定';ui.message.textContent='コンパス値を取得できるまで待ってください';
+  ui.dial.classList.remove('ok');ui.marker.style.display='none';ui.arrow.style.display='none';return;
+ }
+ ui.status.textContent='天の北極を追尾中';
+ ui.difference.textContent=err.toFixed(1)+'°';
+ ui.dial.classList.toggle('ok',err<2);
+ const dx=q[0],dy=-q[1],length=Math.hypot(dx,dy),r=153;
+ if(length<1e-6){
+   ui.marker.style.display=err<90?'':'none';ui.arrow.style.display='none';
+   ui.marker.setAttribute('transform','translate(180 180)');
+ }else{
+   // The direction in the screen plane is the shortest great-circle direction to the pole.
+   const px=dx/length,py=dy/length,scale=r/25;const dist=err*scale;
+   const edge=dist>=r;
+   ui.marker.style.display=edge?'none':'';ui.arrow.style.display=edge?'':'none';
+   if(edge){const ax=180+px*r,ay=180+py*r;const rotation=Math.atan2(py,px)*deg+90;ui.arrow.setAttribute('transform',`translate(${ax} ${ay}) rotate(${rotation})`);}
+   else ui.marker.setAttribute('transform',`translate(${180+px*dist} ${180+py*dist})`);
+ }
+ ui.message.textContent=err<2?'✓ 仮合わせOK':err<25?'黄色い印を中央の＋に合わせる':'黄色い矢印の方向へ画面を向ける';
+}
+async function start(){
+ ui.start.disabled=true;ui.status.textContent='センサーの利用許可を確認中…';
+ try{
+  if(!window.isSecureContext)throw Error('HTTPSのページから開いてください');
+  if(typeof DeviceOrientationEvent==='undefined')throw Error('このブラウザは方向センサーに対応していません');
+  if(typeof DeviceOrientationEvent.requestPermission==='function'){
+   const result=await DeviceOrientationEvent.requestPermission();
+   if(result!=='granted')throw Error('方向センサーの許可が必要です');
+  }
+  if(!active){window.addEventListener('deviceorientation',render);active=true;}
+  ui.status.textContent='センサーを読み込み中…';ui.start.textContent='センサー接続済み';
+  if('geolocation' in navigator){navigator.geolocation.getCurrentPosition(pos=>{
+   ui.lat.value=pos.coords.latitude.toFixed(5);ui.targetAlt.textContent=Number(ui.lat.value).toFixed(2)+'°';
+  },()=>{/* Manual latitude remains available */},{enableHighAccuracy:true,timeout:12000,maximumAge:60000});}
+  setTimeout(()=>{if(!gotEvent)ui.status.textContent='センサー値が届きません。Safariで開き、許可設定を確認してください。';},4000);
+ }catch(error){ui.status.textContent=error.message||'センサー開始に失敗しました';ui.start.disabled=false;}
+}
+ui.start.addEventListener('click',start);
+ui.lat.addEventListener('input',()=>{ui.targetAlt.textContent=(Number(ui.lat.value)||0).toFixed(2)+'°'});
+setInterval(()=>{if(active&&gotEvent&&Date.now()-lastAt>3500)ui.status.textContent='センサー更新が停止しています';},1000);
+})();
+</script></body></html>
